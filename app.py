@@ -133,3 +133,35 @@ with col2:
 
 # --- 4. تذييل الصفحة الملكي ---
 st.markdown("<br><hr><p style='text-align: center; color: gray;'>Powered by Joseph Fahmy AI - Gemini 1.5 Flash & DALL-E 3</p>", unsafe_allow_html=True)
+import streamlit as st
+import google.generativeai as genai
+from openai import OpenAI  # تأكد أن ملف requirements.txt يحتوي على openai
+from PIL import Image
+import requests
+from io import BytesIO
+
+# --- الواجهة الملكية ---
+st.set_page_config(page_title="JOSEPH FAHMY AI", page_icon="🔱", layout="wide")
+
+st.markdown("""
+    <style>
+    .stApp { background-color: #000000; }
+    h1 { color: #D4AF37; text-align: center; font-size: 50px; }
+    .stButton>button { background: linear-gradient(45deg, #D4AF37, #BF953F); color: black; font-weight: bold; border-radius: 20px; }
+    </style>
+    """, unsafe_allow_html=True)
+
+st.markdown("<h1>🔱 JOSEPH FAHMY AI 🔱</h1>", unsafe_allow_html=True)
+
+# التحقق من المفاتيح السرية
+if "GOOGLE_API_KEY" not in st.secrets or "OPENAI_API_KEY" not in st.secrets:
+    st.error("⚠️ ناقصك مفاتيح الـ API في الـ Secrets!")
+    st.stop()
+
+# إعداد الموديلات
+genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+model_flash = genai.GenerativeModel('gemini-1.5-flash')
+client_openai = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
+# باقي الكود الخاص بالتحليل وإنشاء الصور...
+# (استخدم نفس المنطق اللي بعتهولك في الرد اللي فات)
