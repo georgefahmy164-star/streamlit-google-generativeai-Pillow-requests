@@ -17,3 +17,6 @@ cd backend
 
 # تثبيت المتطلبات
 pip install -r requirements.txt
+# تشغيل الواجهة الخلفية
+python app.pyhttp://localhost:8000docker build -t ultimate-ai .
+docker run -p 8000:8000 ultimate-ai
