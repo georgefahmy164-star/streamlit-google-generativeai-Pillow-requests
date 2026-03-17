@@ -1,4 +1,4 @@
-"""
+٦"""
 تطبيق ذكاء اصطناعي متقدم باستخدام نموذج Transformer (GPT-2)
 مع شرح للمفاهيم الأساسية في النماذج اللغوية الكبيرة.
 """
@@ -156,3 +156,145 @@ if __name__ == "__main__":
     # إنشاء وتشغيل المساعد
     assistant = AIAssistantLLM(name)
     assistant.run()
+"""
+تطبيق Joseph Fahmey Ai - نسخة Gemini API الاحترافية
+powered by Joseph Fahmey Ai
+"""
+import os
+from google import genai
+from google.genai import types
+from PIL import Image
+from io import BytesIO
+import datetime
+
+# ======================================================
+# الشعار الخاص بك
+# ======================================================
+def display_logo():
+    logo = """
+    ╔══════════════════════════════════════╗
+    ║     powered by Joseph Fahmey Ai      ║
+    ╚══════════════════════════════════════╝
+    """
+    print(logo)
+
+# ======================================================
+# إعدادات العميل
+# ======================================================
+# قم بتعيين مفتاح API كمتغير بيئة أو ضعه هنا (غير آمن للتوزيع)
+# الأفضل: ضع المفتاح في متغير البيئة GEMINI_API_KEY
+API_KEY = os.environ.get("GEMINI_API_KEY", "أدخل_مفتاحك_هنا")
+
+# تهيئة العميل
+client = genai.Client(api_key=API_KEY)
+
+# النماذج المتاحة (اختر ما يناسبك)
+TEXT_MODEL = "gemini-2.5-flash-preview"       # للردود السريعة
+IMAGE_MODEL = "gemini-2.5-flash-image"        # لإنشاء وتحرير الصور
+
+# ======================================================
+# دوال المساعد
+# ======================================================
+def chat_with_gemini(prompt):
+    """إرسال نص والحصول على رد نصي سريع"""
+    try:
+        response = client.models.generate_content(
+            model=TEXT_MODEL,
+            contents=prompt
+        )
+        return response.text
+    except Exception as e:
+        return f"حدث خطأ: {e}"
+
+def generate_image(prompt):
+    """توليد صورة من وصف نصي"""
+    try:
+        response = client.models.generate_content(
+            model=IMAGE_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_modalities=['Text', 'Image']
+            )
+        )
+        
+        # البحث عن الصورة في الرد
+        for part in response.candidates[0].content.parts:
+            if part.inline_data is not None:
+                # حفظ الصورة
+                image_data = part.inline_data.data
+                image = Image.open(BytesIO(image_data))
+                
+                # إنشاء اسم ملف فريد
+                filename = f"Joseph_AI_image_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                image.save(filename)
+                return f"✅ تم إنشاء الصورة وحفظها كـ: {filename}"
+        
+        return "لم يتم العثور على صورة في الرد."
+    except Exception as e:
+        return f"حدث خطأ أثناء توليد الصورة: {e}"
+
+def multimodal_analysis(image_path, prompt):
+    """تحليل صورة (رفعها) والإجابة عن أسئلة بشأنها"""
+    try:
+        # فتح الصورة
+        image = Image.open(image_path)
+        
+        response = client.models.generate_content(
+            model=IMAGE_MODEL,
+            contents=[prompt, image]  # نرسل الصورة والنص معاً
+        )
+        return response.text
+    except Exception as e:
+        return f"خطأ في التحليل: {e}"
+
+# ======================================================
+# الواجهة الرئيسية
+# ======================================================
+def main():
+    display_logo()
+    print("مرحباً بك في مساعد Joseph Fahmey Ai!")
+    print("الأوامر المتاحة:")
+    print("  - نص:       [رسالتك]")
+    print("  - صورة:     اكتب 'صورة: وصف الصورة'")
+    print("  - تحليل:    اكتب 'تحليل: مسار الصورة, سؤالك'")
+    print("  - خروج:     وداعاً")
+    print("-" * 50)
+
+    while True:
+        user_input = input("\nأنت: ").strip()
+        
+        if not user_input:
+            continue
+            
+        if user_input.lower() in ["وداعا", "مع السلامة", "باي", "خروج"]:
+            print("المساعد: مع السلامة يا Joseph! كان من الرائع مساعدتك.")
+            break
+        
+        # التعامل مع الأوامر الخاصة
+        if user_input.startswith("صورة:"):
+            # أمر توليد صورة
+            prompt = user_input[5:].strip()
+            print("المساعد: جاري إنشاء الصورة... (قد يستغرق 13-20 ثانية)")
+            result = generate_image(prompt)
+            print(f"المساعد: {result}")
+            
+        elif user_input.startswith("تحليل:"):
+            # أمر تحليل صورة: تحليل: مسار/للملف, سؤالك
+            parts = user_input[6:].strip().split(",", 1)
+            if len(parts) == 2:
+                img_path = parts[0].strip()
+                question = parts[1].strip()
+                print("المساعد: جاري تحليل الصورة...")
+                result = multimodal_analysis(img_path, question)
+                print(f"المساعد: {result}")
+            else:
+                print("المساعد: الصيغة الصحيحة: تحليل: مسار الصورة, سؤالك")
+        
+        else:
+            # محادثة عادية
+            print("المساعد: جاري التفكير...", end="", flush=True)
+            response = chat_with_gemini(user_input)
+            print(f"\rالمساعد: {response}")
+
+if __name__ == "__main__":
+    main()
