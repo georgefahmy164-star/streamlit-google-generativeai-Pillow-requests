@@ -5,15 +5,18 @@ import base64
 from PIL import Image
 import io
 
-# 1. إعدادات النظام (العقل الرقمي)
+# 1. إعدادات النواة (Setup)
 st.set_page_config(page_title="Joseph AI Infinity", page_icon="🎓", layout="wide")
 
-# ربط مفتاح Gemini من إعدادات Secrets
+# جلب المفتاح المجاني من Secrets
 try:
-    genai.configure(api_key=st.secrets["GEMINI_KEY"])
-    model = genai.GenerativeModel('gemini-1.5-flash')
-except:
-    st.error("⚠️ خطأ: يرجى إضافة GEMINI_KEY في إعدادات Secrets في Streamlit Cloud")
+    if "GEMINI_KEY" in st.secrets:
+        genai.configure(api_key=st.secrets["GEMINI_KEY"])
+        model = genai.GenerativeModel('gemini-1.5-flash')
+    else:
+        st.error("⚠️ خطأ: GEMINI_KEY غير موجود في Secrets!")
+except Exception as e:
+    st.error(f"⚠️ فشل في إعداد Gemini: {str(e)}")
 
 # 2. وظيفة تحويل اللوجو لـ 3D
 def get_image_base64(path):
@@ -24,7 +27,7 @@ def get_image_base64(path):
 
 logo_data = get_image_base64("logo.jpg")
 
-# 3. واجهة الـ 3D الهولوغرافية
+# 3. واجهة الـ 3D (Holographic Core)
 hologram = f"""
 <div id="viz" style="width: 100%; height: 200px;"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -47,11 +50,12 @@ hologram = f"""
 st.markdown("<h1 style='text-align: center; color: #00f2ff;'>JOSEPH AI - ULTIMATE CORE</h1>", unsafe_allow_html=True)
 components.html(hologram, height=200)
 
-# 4. إدارة الحالة (لحفظ النتائج)
+# 4. إدارة الحالة
 if "code_result" not in st.session_state: st.session_state.code_result = ""
 if "study_result" not in st.session_state: st.session_state.study_result = ""
+if "history" not in st.session_state: st.session_state.history = []
 
-# 5. لوحة التحكم الجانبية (الرفع والمعالجة)
+# 5. لوحة التحكم الجانبية (Sidebar)
 with st.sidebar:
     st.header("⚙️ أدوات جوزيف")
     file = st.file_uploader("ارفع صورة الكود هنا", type=["jpg", "png", "jpeg"])
@@ -62,12 +66,12 @@ with st.sidebar:
         with col1:
             if st.button("🤖 استخراج الكود"):
                 with st.spinner("جاري الاستخراج..."):
-                    res = model.generate_content(["استخرج الكود من الصورة بدقة كملف نصي فقط بدون شرح.", img])
+                    res = model.generate_content(["استخرج الكود من هذه الصورة فقط بدقة.", img])
                     st.session_state.code_result = res.text
         with col2:
             if st.button("📚 مود المذاكرة"):
                 with st.spinner("جاري التحليل..."):
-                    res = model.generate_content(["اشرح منطق هذا الكود بالتفصيل للمبتدئين.", img])
+                    res = model.generate_content(["اشرح منطق هذا الكود البرمجي بالتفصيل.", img])
                     st.session_state.study_result = res.text
 
 # 6. عرض النتائج التعليمية
@@ -80,17 +84,27 @@ if st.session_state.study_result:
     with st.expander("📖 شرح المعلم الرقمي", expanded=True):
         st.write(st.session_state.study_result)
 
-# 7. نظام الدردشة (الذكاء الاصطناعي)
+# 7. نظام الدردشة (Chat) - التعديل الأهم هنا
 st.divider()
-if "history" not in st.session_state: st.session_state.history = []
-
 for m in st.session_state.history:
     with st.chat_message(m["role"]): st.write(m["content"])
 
 if prompt := st.chat_input("تحدث مع جوزيف..."):
-    st.session_state.history.append({"role": "user", "content": prompt})
-    with st.chat_message("user"): st.write(prompt)
-    with st.chat_message("assistant"):
-        response = model.generate_content(prompt)
-        st.write(response.text)
-        st.session_state.history.append({"role": "assistant", "content": response.text})
+    # التأكد أن الرسالة ليست فارغة قبل الإرسال
+    if prompt.strip():
+        st.session_state.history.append({"role": "user", "content": prompt})
+        with st.chat_message("user"): st.write(prompt)
+        
+        with st.chat_message("assistant"):
+            try:
+                # إضافة سياق لـ Gemini لضمان ردود احترافية
+                full_prompt = f"أنت جوزيف AI المساعد الشخصي لجورج فهمي. أجب على: {prompt}"
+                response = model.generate_content(full_prompt)
+                
+                if response and response.text:
+                    st.write(response.text)
+                    st.session_state.history.append({"role": "assistant", "content": response.text})
+                else:
+                    st.error("جوزيف لم يستطع توليد رد، حاول مرة أخرى.")
+            except Exception as e:
+                st.error(f"خطأ في الاتصال: {str(e)}")
