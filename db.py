@@ -1,11 +1,16 @@
-messages_db = {}
+import sqlite3
 
-def save_message(user_id, role, content):
-    if user_id not in messages_db:
-        messages_db[user_id] = []
-    messages_db[user_id].append({"role": role, "content": content})
+def init_db():
+    conn = sqlite3.connect("joseph_core.db")
+    cursor = conn.cursor()
+    # جدول المستخدمين وبصمة الوجه
+    cursor.execute('''CREATE TABLE IF NOT EXISTS users 
+                     (username TEXT PRIMARY KEY, password TEXT, face_id TEXT)''')
+    # جدول الرسائل والسياق
+    cursor.execute('''CREATE TABLE IF NOT EXISTS messages 
+                     (username TEXT, role TEXT, content TEXT, timestamp DATETIME)''')
+    conn.commit()
+    conn.close()
 
-def get_last_messages(user_id, limit=5):
-    if user_id in messages_db:
-        return messages_db[user_id][-limit:]
-    return []
+if __name__ == "__main__":
+    init_db()
