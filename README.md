@@ -1,22 +1,13 @@
-# 💀 Ultimate AI God Mode
+# Joseph Fahmy AI - The Infinity Protocol 🚀
 
-🔥 AI Web App شبيه بـ ChatGPT مع قدرات قراءة ملفات PDF، ذاكرة محادثة، وRAG للردود الذكية.
+هذا هو المستودع الرسمي لنظام **Joseph Fahmy AI**، النظام الذكي المتكامل لإدارة مشاريع البرمجة، الألعاب (Fahmy’s Battlegrounds)، والترجمة الاحترافية.
 
-## 🚀 المميزات
-- 🤖 AI Chat شبه ChatGPT
-- 📄 رفع PDF + استخراج المعرفة
-- 🧠 Memory & Conversation History
-- 🔎 RAG للردود الذكية
-- 🌐 Web Interface تفاعلية
-- 🐳 Docker جاهز للنشر عالميًا
+## ✨ المميزات:
+- **Neural Chat:** دردشة ذكية مدعومة بـ GPT-4o.
+- **Face ID:** تسجيل دخول آمن عبر التعرف على الوجه.
+- **Auto-Save:** ربط مباشر مع Google Drive لحفظ المشاريع.
+- **3D Interface:** واجهة تفاعلية بـ Three.js.
 
-## 🛠️ التثبيت
-```bash
-# الدخول للمجلد
-cd backend
-
-# تثبيت المتطلبات
-pip install -r requirements.txt
-# تشغيل الواجهة الخلفية
-python app.pyhttp://localhost:8000docker build -t ultimate-ai .
-docker run -p 8000:8000 ultimate-ai
+## 🛠️ التشغيل:
+1. `pip install -r requirements.txt`
+2. `python app.py`
