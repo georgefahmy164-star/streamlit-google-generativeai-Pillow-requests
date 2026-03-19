@@ -1,47 +1,18 @@
-import torch
-from fastapi import FastAPI, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from embeddings import add_to_knowledge, search_knowledge, read_pdf
-from db import save_message, get_last_messages
+from fastapi import FastAPI, Form
+from openai import OpenAI
+import os
 
 app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"]
-)
-
-MODEL_NAME = "distilgpt2"  # تقدر تغيّره لموديل أقوى لو عندك GPU
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModelForCausalLM.from_pretrained(MODEL_NAME)
-model.eval()
+client = OpenAI(api_key="ضع_مفتاحك_هنا")
 
 @app.post("/chat")
-async def chat(message: str, user_id: str = "default"):
-    context = search_knowledge(message)
-    history = get_last_messages(user_id, limit=5)
-
-    prompt = "You are a helpful AI assistant.\n"
-    if context:
-        prompt += f"Context:\n{context}\n\n"
-    for msg in history:
-        prompt += f"{msg['role'].capitalize()}: {msg['content']}\n"
-    prompt += f"User: {message}\nAssistant:"
-
-    inputs = tokenizer(prompt, return_tensors="pt")
-    outputs = model.generate(**inputs, max_new_tokens=150, temperature=0.7, top_p=0.9)
-    response = tokenizer.decode(outputs[0], skip_special_tokens=True).split("Assistant:")[-1].strip()
-
-    save_message(user_id, "user", message)
-    save_message(user_id, "assistant", response)
-    return {"response": response}
-
-@app.post("/upload")
-async def upload_pdf(file: UploadFile = File(...)):
-    text = read_pdf(file.file)
-    for chunk in text.split("\n"):
-        if len(chunk.strip()) > 20:
-            add_to_knowledge(chunk)
-    return {"status": "PDF processed"}
+async def chat(message: str = Form(...)):
+    # دمج سياق مشاريعك (Battlegrounds & Translator) في الـ System Prompt
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": "أنت جوزيف فهمي AI، النسخة النهائية. خبير في برمجة الألعاب وترجمة النصوص."},
+            {"role": "user", "content": message}
+        ]
+    )
+    return {"response": response.choices[0].message.content}
