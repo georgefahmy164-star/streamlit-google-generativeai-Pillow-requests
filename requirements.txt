@@ -1,7 +1,10 @@
-torch
-transformers
 fastapi
 uvicorn
-sentence-transformers
-faiss-cpu
-PyPDF2
+openai
+python-multipart
+python-jose[cryptography]
+passlib[bcrypt]
+python-dotenv
+google-api-python-client
+google-auth-oauthlib
+duckduckgo-search
